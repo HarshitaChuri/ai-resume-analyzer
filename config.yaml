@@ -1,0 +1,4 @@
+cookie:
+  expiry_days: 30
+  key: random_signature_key
+  name: resume_analyzer_cookie
