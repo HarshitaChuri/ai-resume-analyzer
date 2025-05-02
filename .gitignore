@@ -1,8 +1,27 @@
-venv/
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+env/
+venv/
+ENV/
 .env
+*.env
+
+# Database
+users.db
+
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+*.log
+*.bak
+*.swp
 .DS_Store
-.ipynb_checkpoints/

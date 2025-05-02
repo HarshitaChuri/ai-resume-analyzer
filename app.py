@@ -2,11 +2,15 @@ import streamlit as st
 from auth import login, signup
 from utils import load_lottie_animation
 from db import initialize_database
-from resume_analyzer import extract_text_from_pdf, parse_resume, analyze_resume, generate_recommendations, chat_with_resume
-from reports import generate_pdf_report, generate_skill_chart
+from resume_analyzer import extract_text_from_pdf, parse_resume, analyze_resume, generate_recommendations, chat_with_resume, generate_ats_chart
+from reports import generate_pdf_report
 import sqlite3
 import bcrypt
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -55,9 +59,14 @@ st.markdown("""
         font-size: 1rem;
     }
     .highlight {
-        color: #1b5e20;
+        color: #4CAF50;
         font-size: 1.1rem;
         font-weight: bold;
+    }
+    .recommendation {
+        color: #FFFFFF;
+        font-size: 1.1rem;
+        font-weight: normal;
     }
     .button {
         background-color: #2563EB;
@@ -103,7 +112,6 @@ def reset_password(username, new_password):
     try:
         conn = sqlite3.connect('users.db')
         c = conn.cursor()
-        # Use lowercase username
         username_lower = username.lower()
         c.execute('SELECT username FROM users WHERE username = ?', (username_lower,))
         if c.fetchone():
@@ -125,22 +133,17 @@ def display_auth_page():
     try:
         st.markdown('<div class="main-header">AI Resume Analyzer</div>', unsafe_allow_html=True)
         
-        # Sidebar with animation and hidden credentials
         with st.sidebar:
             try:
                 load_lottie_animation("https://assets5.lottiefiles.com/packages/lf20_xyadoh9h.json")
             except Exception as e:
                 st.warning(f"Failed to load animation: {e}")
             st.markdown('<div class="text">Welcome to the AI Resume Analyzer!</div>', unsafe_allow_html=True)
-            with st.expander("View Test Credentials"):
-                st.markdown('<div class="text">Test credentials:<br>- ganu/password123 (Job Seeker)<br>- jobseeker1/password123 (Job Seeker)<br>- bappa/1 (Job Seeker)<br>- recruiter1/password123 (Recruiter)<br>- bhavisha/password123 (Job Seeker)</div>', unsafe_allow_html=True)
         
-        # Role selection (no card)
         with st.container():
             role = st.selectbox("Select Your Role", ["Job Seeker", "Recruiter"], key="role_select")
             st.markdown(f'<div class="text">You are signing up or logging in as a <b>{role}</b>. Ensure your account matches this role.</div>', unsafe_allow_html=True)
         
-        # Authentication options
         auth_option = st.radio("Choose an option", ["Login", "Sign Up", "Reset Password"], key="auth_option")
         
         if auth_option == "Sign Up":
@@ -224,11 +227,33 @@ def display_auth_page():
         logger.error(f"Error in auth page: {e}")
         st.error(f"Failed to render auth page: {e}")
 
+def format_recommendations(recommendations, job_role):
+    """Format recommendations to avoid repeating job role and use bullets"""
+    try:
+        # Split recommendations into lines
+        lines = recommendations.split('\n')
+        formatted = []
+        job_role_prefix = f"For {job_role}:"
+        for line in lines:
+            line = line.strip()
+            if line.startswith(job_role_prefix):
+                # Remove the job role prefix
+                formatted.append(f"- {line[len(job_role_prefix):].strip()}")
+            elif line.startswith("ATS Tip:") or line.startswith("Add for"):
+                # Keep ATS Tip and Add lines as is
+                formatted.append(f"- {line}")
+            elif line:
+                # Include any other non-empty lines
+                formatted.append(f"- {line}")
+        return '\n'.join(formatted) if formatted else recommendations
+    except Exception as e:
+        logger.error(f"Error formatting recommendations: {e}")
+        return recommendations
+
 def display_dashboard():
     try:
         st.markdown(f'<div class="main-header">Welcome, {st.session_state["username"]}!</div>', unsafe_allow_html=True)
         
-        # Logout button and animation
         with st.sidebar:
             try:
                 load_lottie_animation("https://assets5.lottiefiles.com/packages/lf20_xyadoh9h.json")
@@ -236,7 +261,6 @@ def display_dashboard():
                 st.warning(f"Failed to load animation: {e}")
             st.markdown(f'<div class="text">Logged in as {st.session_state["username"]} ({st.session_state["role"].replace("_", " ").title()})</div>', unsafe_allow_html=True)
             if st.button("Logout"):
-                # Clear session state
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.session_state['authenticated'] = False
@@ -257,58 +281,67 @@ def display_dashboard():
                 try:
                     with st.spinner("Analyzing resume..."):
                         logger.debug("Processing uploaded resume")
-                        # Extract and analyze resume
                         text = extract_text_from_pdf(uploaded_file)
                         parsed_data = parse_resume(uploaded_file)
-                        analysis = analyze_resume(text)
-                        
-                        # Handle parsing error
-                        if "error" in parsed_data:
-                            st.warning(f"Resume parsing failed: {parsed_data['error']}. Proceeding with text-based analysis.")
-                            parsed_data = {"name": "N/A", "email": "N/A", "skills": [], "education": "N/A"}
-                        
-                        # Job role input
                         st.markdown('<div class="card"><div class="subheader">Target Job Role</div>', unsafe_allow_html=True)
-                        job_role = st.text_area("Enter the job role or job description you are targeting (optional):", height=100)
                         st.markdown('<div class="text">This helps tailor recommendations and chat responses to your job goals.</div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
+                        job_role = st.text_area("Enter the job role or job description you are targeting (optional):", height=100)
+                        analysis = analyze_resume(text, job_role)
                         
-                        # Display analysis
+                        if "error" in parsed_data:
+                            st.warning(f"Resume parsing failed: {parsed_data['error']}. Proceeding with text-based analysis.")
+                            parsed_data = {
+                                "personal_info": {"name": "N/A", "email": "N/A"},
+                                "skills": [],
+                                "education": [{"degree": "N/A", "institution": "N/A", "graduation_date": "N/A", "gpa": "N/A"}],
+                                "experience": [{"title": "N/A", "company": "N/A", "duration": "N/A", "description": []}],
+                                "projects": [{"name": "N/A", "description": "", "technologies": []}],
+                                "certifications": []
+                            }
+                        
                         st.markdown('<div class="card"><div class="subheader">Resume Analysis</div>', unsafe_allow_html=True)
                         st.markdown(f"""
-                        - <span class=\"highlight\">Sentiment Score</span>: {analysis['sentiment']:.2f}
-                        - <span class=\"highlight\">Word Count</span>: {analysis['word_count']}
-                        - <span class=\"highlight\">Skills Detected</span>: {', '.join(analysis['skills'])}
+                        - <span class="highlight">ATS Score</span>: {analysis['ats_score']:.2f}
+                        - <span class="highlight">Word Count</span>: {analysis['word_count']}
+                        - <span class="highlight">Skills Detected</span>: {', '.join(analysis['skills'])}
                         """, unsafe_allow_html=True)
+                        st.plotly_chart(generate_ats_chart(analysis), use_container_width=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
-                        # Display parsed data
                         st.markdown('<div class="card"><div class="subheader">Parsed Resume Data</div>', unsafe_allow_html=True)
-                        for key, value in parsed_data.items():
-                            if value and key != "error":
-                                st.markdown(f"- <span class=\"highlight\">{key.capitalize()}</span>: {value}", unsafe_allow_html=True)
+                        st.markdown(f"- <span class=\"highlight\">Name</span>: {parsed_data['personal_info'].get('name', 'N/A')}", unsafe_allow_html=True)
+                        st.markdown(f"- <span class=\"highlight\">Email</span>: {parsed_data['personal_info'].get('email', 'N/A')}", unsafe_allow_html=True)
+                        st.markdown("<span class=\"highlight\">Education</span>:", unsafe_allow_html=True)
+                        for edu in parsed_data['education']:
+                            st.markdown(f"  - {edu.get('degree', 'N/A')} at {edu.get('institution', 'N/A')}, {edu.get('graduation_date', 'N/A')} (GPA: {edu.get('gpa', 'N/A')})", unsafe_allow_html=True)
+                        st.markdown("<span class=\"highlight\">Experience</span>:", unsafe_allow_html=True)
+                        for exp in parsed_data['experience']:
+                            st.markdown(f"  - {exp.get('title', 'N/A')} at {exp.get('company', 'N/A')} ({exp.get('duration', 'N/A')})", unsafe_allow_html=True)
+                            for desc in exp.get('description', []):
+                                st.markdown(f"    - {desc}", unsafe_allow_html=True)
+                        st.markdown(f"- <span class=\"highlight\">Skills</span>: {', '.join(parsed_data['skills']) if parsed_data['skills'] else 'None'}", unsafe_allow_html=True)
+                        st.markdown("<span class=\"highlight\">Projects</span>:", unsafe_allow_html=True)
+                        for proj in parsed_data['projects']:
+                            st.markdown(f"  - {proj.get('name', 'N/A')}: {proj.get('description', 'No description')}", unsafe_allow_html=True)
+                            st.markdown(f"    Technologies: {', '.join(proj.get('technologies', []))}", unsafe_allow_html=True)
+                        st.markdown(f"- <span class=\"highlight\">Certifications</span>: {', '.join(parsed_data['certifications']) if parsed_data['certifications'] else 'None'}", unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
-                        # Generate and display recommendations
                         recommendations = generate_recommendations(analysis, job_role)
+                        formatted_recommendations = format_recommendations(recommendations, job_role if job_role else "the job role")
                         st.markdown('<div class="card"><div class="subheader">Recommendations</div>', unsafe_allow_html=True)
-                        st.markdown(f'<span class=\"highlight\">{recommendations}</span>', unsafe_allow_html=True)
+                        st.markdown(f'<span class="recommendation">{formatted_recommendations}</span>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
-                        # Display skill chart
-                        fig = generate_skill_chart(analysis)
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Chat interface
                         st.markdown('<div class="card"><div class="subheader">Chat with Resume Reviewer</div>', unsafe_allow_html=True)
                         user_query = st.text_input("Ask a question about your resume:")
                         if user_query:
                             with st.spinner("Generating response..."):
                                 response = chat_with_resume(text, user_query, job_role)
-                                st.markdown(f'<span class=\"highlight\">{response}</span>', unsafe_allow_html=True)
+                                st.markdown(f'<span class="recommendation">{response}</span>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
-                        # Download report
                         st.markdown('<div class="card"><div class="subheader">Download Report</div>', unsafe_allow_html=True)
                         pdf_buffer = generate_pdf_report(analysis, recommendations)
                         st.download_button(
@@ -335,7 +368,6 @@ def display_dashboard():
         logger.error(f"Error in dashboard: {e}")
         st.error(f"Failed to render dashboard: {e}")
 
-# Render appropriate page
 try:
     if not st.session_state['authenticated']:
         display_auth_page()

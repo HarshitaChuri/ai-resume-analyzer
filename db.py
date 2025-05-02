@@ -1,25 +1,26 @@
 import sqlite3
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 def initialize_database():
+    """Initialize the SQLite database and create the users table if it doesn't exist"""
     try:
         conn = sqlite3.connect('users.db')
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS users
-                     (username TEXT PRIMARY KEY, hashed_password TEXT, role TEXT)''')
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password BLOB NOT NULL,
+                role TEXT NOT NULL
+            )
+        ''')
         conn.commit()
-        conn.close()
+        logger.debug("Database initialized successfully")
     except Exception as e:
-        raise Exception(f"Failed to initialize database: {e}")
-
-def add_user(username, hashed_password, role):
-    try:
-        conn = sqlite3.connect('users.db')
-        c = conn.cursor()
-        c.execute("INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
-                  (username, hashed_password, role))
-        conn.commit()
+        logger.error(f"Error initializing database: {e}")
+        raise
+    finally:
         conn.close()
-    except sqlite3.IntegrityError:
-        raise ValueError("Username already exists")
-    except Exception as e:
-        raise Exception(f"Failed to add user: {e}")
