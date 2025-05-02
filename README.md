@@ -1,4 +1,5 @@
 AI Resume Analyzer
+
 AI Resume Analyzer is a Streamlit-based web application designed to help job seekers optimize their resumes. It allows users to upload PDF resumes, parse key information (personal info, education, experience, skills, projects, certifications), calculate an ATS (Applicant Tracking System) score, provide tailored recommendations, offer a chat assistant powered by Gemini AI, and generate a PDF report. The app features an engaging UI with gradient cards, Lottie animations, and a responsive layout.
 This project was inspired by Smart-AI-Resume-Analyzer(https://github.com/Hunterdii/Smart-AI-Resume-Analyzer). While we drew inspiration from its concept and features, this implementation is original, with custom code and enhancements tailored to our requirements.
 
