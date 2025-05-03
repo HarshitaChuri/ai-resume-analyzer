@@ -1,31 +1,31 @@
 # Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-ENV/
-.env
-*.env
+  __pycache__/
+  *.pyc
+  *.pyo
+  *.pyd
+  .Python
+  env/
+  venv/
+  ENV/
+  .env
+  *.env
 
-# Database
-users.db
+  # Database
+  users.db
 
-# Streamlit
-.streamlit/
+  # Streamlit
+  .streamlit/
 
-# IDE
-.vscode/
-.idea/
+  # IDE
+  .vscode/
+  .idea/
 
-# Misc
-*.log
-*.bak
-*.swp
-.DS_Store
+  # Misc
+  *.log
+  *.bak
+  *.swp
+  .DS_Store
 
-# Project-specific
-temp_resumes/
-uploads/
+  # Project-specific
+  temp_resumes/
+  uploads/
