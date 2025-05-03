@@ -25,3 +25,7 @@ users.db
 *.bak
 *.swp
 .DS_Store
+
+# Project-specific
+temp_resumes/
+uploads/
